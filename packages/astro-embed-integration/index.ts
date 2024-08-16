@@ -6,9 +6,12 @@ const importNamespace = 'AuToImPoRtEdAstroEmbed';
 /**
  * Astro embed MDX integration.
  */
-export default function embed() {
+export default function embed(
+	{ cache }: { cache: string | boolean } = { cache: false }
+) {
 	const AstroEmbed: AstroIntegration = {
 		name: 'astro-embed',
+
 		hooks: {
 			'astro:config:setup': ({ config, updateConfig }) => {
 				checkIntegrationsOrder(config);

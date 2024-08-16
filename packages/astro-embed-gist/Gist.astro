@@ -1,73 +1,110 @@
 ---
-export interface Props {
-  /**
-   * Gist url to fetch
-   */
-  id: string;
-  /**
-   * Optional file name to fetch, case sensitive
-   */
-  fileName?: string;
-}
-const { id, fileName } = Astro.props;
-let url = id + '.json';
-if (fileName) {
-  url += `?file=${fileName}`;
-}
+const GITHUB_TOKEN =
+	import.meta.env.VITE_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
 
-async function fetchGist(id: string) {
-  try {
-    const gistUrl = new URL(url);
-    return (await fetch(gistUrl).then((res) => res.json())) as {
-      description: string;
-      created_at: Date;
-      files: string[];
-      owner: string;
-      stylesheet: string;
-      div: string;
-    };
-  } catch (e) {
-    console.error(
-      `[error]  astro-embed
-         ${e.status} - ${e.statusText}: Failed to fetch gist ${id}`
-    );
-  }
+export type Props =
+	| {
+			path: string;
+	  }
+	| {
+			/** Gist url to fetch */
+			id: string;
+			/** Optional file name to fetch, case sensitive */
+			fileName?: string;
+	  };
+
+const { id, fileName, path } = Astro.props;
+
+const getUrl = () => {
+	let url: string = `https://gist.github.com/`;
+	if (id != null) {
+		url = id + '.json';
+		if (fileName) {
+			url += `?file=${fileName}`;
+		}
+	} else if (path != null) {
+		url = path;
+	} else {
+		console.error(
+			`[error]  astro-embed-gist: Missing required prop 'path', 'id' or 'fileName'`
+		);
+		return null;
+	}
+	return url;
+};
+
+async function fetchGist(url: string | null) {
+	if (!url) {
+		return console.warn('[warn]  astro-embed-gist  Invalid url:', url);
+	}
+	try {
+		return (await fetch(url, {
+			headers: {
+				Accept: 'application/vnd.github+json',
+				// "application/vnd.github.v3.html+json",
+				Authorization: 'Bearer '.concat(GITHUB_TOKEN),
+			},
+		}).then((res) => res.json())) as {
+			description: string;
+			created_at: Date;
+			files: string[];
+			owner: string;
+			stylesheet: string;
+			div: string;
+		};
+	} catch (e) {
+		if (
+			typeof e === 'object' &&
+			e !== null &&
+			'status' in e &&
+			'statusText' in e
+		) {
+			console.error(
+				`[error]  astro-embed-gist
+					${e?.status} - ${e?.statusText}: Failed to fetch gist ${id}`
+			);
+		} else {
+			console.error(`[error]  astro-embed-gist: Unknown error ${e}`, e);
+		}
+		return null;
+	}
 }
-const gist = await fetchGist(id);
+const gist = await fetchGist(getUrl());
 
 // TODO use stylesheet
 const stylesheetUrl = gist?.stylesheet;
 ---
 
 {
-  gist && (
-    <astro-embed-gist data-cssurl={stylesheetUrl}>
-      <p class="gist-embed-description">{gist.description}</p>
-      <Fragment set:html={gist.div} />
-      <span class="gist-embed-owner">gist by {gist.owner}</span>
-    </astro-embed-gist>
-  )
+	gist && (
+		<astro-embed-gist data-cssurl={stylesheetUrl}>
+			<p class="gist-embed-description">{gist.description}</p>
+			<Fragment set:html={gist.div} />
+			<span class="gist-embed-owner">gist by {gist.owner}</span>
+		</astro-embed-gist>
+	)
 }
 <style>
-  astro-embed-gist {
-    display: block;
-  }
-  .gist-embed-owner {
-  }
-  .gist-embed-description {
-  }
+	astro-embed-gist {
+		display: block;
+	}
+	.gist-embed-owner {
+	}
+	.gist-embed-description {
+	}
 </style>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    const gists = document.querySelectorAll('astro-embed-gist');
-    gists.forEach((e) => {
-      const stylesheetUrl = e.dataset.cssurl;
-      const linkElement = document.createElement('link');
-      linkElement.href = stylesheetUrl;
-      linkElement.rel = 'stylesheet';
-      linkElement.type = 'text/css';
-      document.head.appendChild(linkElement);
-    });
-  });
+	document.addEventListener('DOMContentLoaded', function () {
+		const gists = document.querySelectorAll('astro-embed-gist');
+		gists.forEach((e) => {
+			console.log('adding css', gists.length, e.dataset.cssurl);
+			const stylesheetUrl = e.dataset.cssurl;
+			const linkElement = document.createElement('link');
+			linkElement.href = stylesheetUrl;
+			linkElement.rel = 'stylesheet';
+			linkElement.type = 'text/css';
+			document.head.appendChild(linkElement);
+		});
+	});
 </script>
